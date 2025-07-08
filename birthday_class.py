@@ -89,10 +89,11 @@ class AddressBook(UserDict):
 
     def get_upcoming_birthdays(self):
         upcoming_birthdays = []
-        today = datetime.now()
+        today = datetime.now().date()
         for record in self.data.values():
             if record.birthday:
-                bday = datetime.strptime(record.birthday.value, "%d.%m.%Y")
+                bday = datetime.strptime(
+                    record.birthday.value, "%d.%m.%Y").date()
                 bday_this_year = bday.replace(year=today.year)
                 if bday_this_year < today:
                     bday_this_year = bday_this_year.replace(
@@ -100,7 +101,7 @@ class AddressBook(UserDict):
                 delta = (bday_this_year - today).days
                 if 0 <= delta < 7:
                     greeting_day = bday_this_year
-                    if greeting_day.weekday() in (5, 6):
+                    if greeting_day.weekday() in (5, 6):  # вихідні
                         greeting_day += timedelta(days=(7 -
                                                   greeting_day.weekday()))
                     upcoming_birthdays.append({
