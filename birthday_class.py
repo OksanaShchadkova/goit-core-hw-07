@@ -28,14 +28,17 @@ class Phone(Field):
 
 class Birthday(Field):
     def __init__(self, value):
-        try:
-            # Перетворення рядка на об'єкт datetime
-            self.value = datetime.strptime(value, "%d.%m.%Y")
-        except ValueError:
+        if not self.validate(value):
             raise ValueError("Invalid date format. Use DD.MM.YYYY")
+        super().__init__(value)
 
-    def __str__(self):
-        return self.value.strftime("%d.%m.%Y")
+    @staticmethod
+    def validate(value):
+        try:
+            datetime.strptime(value, "%d.%m.%Y")
+            return True
+        except ValueError:
+            return False
 
 
 class Record:
@@ -74,6 +77,11 @@ class Record:
                 return phone
         return None
 
+    def __str__(self):
+        phones = ", ".join(str(p) for p in self.phones) or "No phones"
+        birthday = str(self.birthday) if self.birthday else "No birthday"
+        return f"Name: {self.name}, Phones: {phones}, Birthday: {birthday}"
+
 
 class AddressBook(UserDict):
     def add_record(self, record):
@@ -84,15 +92,21 @@ class AddressBook(UserDict):
         today = datetime.now()
         for record in self.data.values():
             if record.birthday:
-                birthday = record.birthday.value.replace(year=today.year)
-                if today <= birthday < today + timedelta(days=7):
+                bday = datetime.strptime(record.birthday.value, "%d.%m.%Y")
+                bday_this_year = bday.replace(year=today.year)
+                if bday_this_year < today:
+                    bday_this_year = bday_this_year.replace(
+                        year=today.year + 1)
+                delta = (bday_this_year - today).days
+                if 0 <= delta < 7:
+                    greeting_day = bday_this_year
+                    if greeting_day.weekday() in (5, 6):
+                        greeting_day += timedelta(days=(7 -
+                                                  greeting_day.weekday()))
                     upcoming_birthdays.append({
                         "name": record.name.value,
-                        "birthday": record.birthday
+                        "congratulate_on": greeting_day.strftime("%d.%m.%Y")
                     })
-                # Переносимо на наступний робочий день, якщо день народження випадає на вихідний
-                if birthday.weekday() in (5, 6):  # 5 - субота, 6 - неділя
-                    birthday += timedelta(days=(7 - birthday.weekday()))
         return upcoming_birthdays
 
 
@@ -145,7 +159,7 @@ def show_phone(args, book):
 
 @input_error
 def all_contacts(args, book):
-    return "\n".join([f"{record.name.value}: {', '.join(str(phone) for phone in record.phones)}" for record in book.values()])
+    return "\n".join([str(record) for record in book.values()])
 
 
 @input_error
@@ -171,7 +185,7 @@ def show_birthday(args, book):
 @input_error
 def birthdays(args, book):
     upcoming_birthdays = book.get_upcoming_birthdays()
-    return "\n".join([f"{entry['name']} - {entry['birthday']}" for entry in upcoming_birthdays]) if upcoming_birthdays else "No upcoming birthdays."
+    return "\n".join([f"{entry['name']} - {entry['congratulate_on']}" for entry in upcoming_birthdays]) if upcoming_birthdays else "No upcoming birthdays."
 
 
 def main():
@@ -181,7 +195,9 @@ def main():
         user_input = input("Enter a command: ")
         if user_input.strip() == "":
             continue
-        command, *args = user_input.split()
+        parts = user_input.strip().split()
+        command, *args = [p.lower() if i == 0 else p for i,
+                          p in enumerate(parts)]
 
         if command in ["close", "exit"]:
             print("Good bye!")
